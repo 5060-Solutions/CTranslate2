@@ -11,6 +11,11 @@ namespace ctranslate2 {
     public:
       using ReplicaPoolHelper::ReplicaPoolHelper;
 
+      // Persistent sequence_bias — set once, applied to every generate() call
+      // unless explicitly overridden. Lets callers like faster-whisper benefit
+      // from sequence_bias without modifying their source.
+      std::vector<std::pair<std::vector<size_t>, float>> _persistent_sequence_bias;
+
       bool is_multilingual() const {
         return _pool->is_multilingual();
       }
@@ -70,8 +75,10 @@ namespace ctranslate2 {
           options.suppress_tokens = suppress_tokens.value();
         else
           options.suppress_tokens.clear();
-        if (sequence_bias)
+        if (sequence_bias && !sequence_bias.value().empty())
           options.sequence_bias = sequence_bias.value();
+        else if (!_persistent_sequence_bias.empty())
+          options.sequence_bias = _persistent_sequence_bias;
         else
           options.sequence_bias.clear();
         std::shared_lock lock(_mutex);
@@ -228,6 +235,15 @@ namespace ctranslate2 {
         .def_property_readonly("num_active_batches", &WhisperWrapper::num_active_batches,
                                "Number of batches waiting to be processed or currently processed.")
 
+        .def_readwrite("sequence_bias", &WhisperWrapper::_persistent_sequence_bias,
+                       "Persistent sequence bias applied to every generate() call.\n\n"
+                       "Set to a list of ``(token_ids, bias_score)`` tuples to boost or suppress\n"
+                       "specific token sequences during decoding. This is applied automatically\n"
+                       "when ``generate()`` is called without an explicit ``sequence_bias`` argument,\n"
+                       "making it compatible with higher-level libraries like faster-whisper.\n\n"
+                       "Example:\n"
+                       "    model.sequence_bias = [([token_id_1, token_id_2], 1.5)]\n")
+
         .def("encode", &WhisperWrapper::encode,
              py::arg("features"),
              py::arg("to_cpu")=false,
@@ -262,7 +278,7 @@ namespace ctranslate2 {
              py::arg("max_initial_timestamp_index")=50,
              py::arg("suppress_blank")=true,
              py::arg("suppress_tokens")=std::vector<int>{-1},
-             py::arg("sequence_bias")=std::vector<std::pair<int, float>>{},
+             py::arg("sequence_bias")=std::vector<std::pair<std::vector<size_t>, float>>{},
              py::arg("sampling_topk")=1,
              py::arg("sampling_temperature")=1,
              py::call_guard<py::gil_scoped_release>(),
