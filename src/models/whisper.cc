@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "ctranslate2/decoding.h"
+#include "ctranslate2/hot_words.h"
 
 #include "dispatch.h"
 #include "dtw.h"
@@ -309,6 +310,11 @@ namespace ctranslate2 {
       decoding_options.return_logits_vocab = options.return_logits_vocab;
       decoding_options.include_eos_in_hypotheses = false;
       decoding_options.sequence_bias = options.sequence_bias;
+
+      if (!options.hot_words.empty() && !options.vocab_map.empty()) {
+        decoding_options.logits_processors.emplace_back(
+          std::make_shared<HotWordsBiaser>(options.vocab_map, options.hot_words));
+      }
 
       for (const auto& id : options.suppress_tokens) {
         if (id >= 0)

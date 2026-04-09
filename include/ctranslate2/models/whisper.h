@@ -59,6 +59,15 @@ namespace ctranslate2 {
 
       // List of sequences and a bias factor to contextualize decoding.
       std::vector<std::pair<std::vector<size_t>, float>> sequence_bias = {};
+
+      // Hot words: list of (word_string, bias_weight) pairs for character-level biasing.
+      // Unlike sequence_bias (which operates on token IDs), hot words work at the
+      // character level and can bias toward novel words the model hasn't seen.
+      std::vector<std::pair<std::string, float>> hot_words = {};
+
+      // Vocabulary map (token ID -> text) needed for hot words.
+      // Set automatically when hot_words is non-empty.
+      std::vector<std::string> vocab_map = {};
     };
 
     struct WhisperGenerationResult {

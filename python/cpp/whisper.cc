@@ -16,6 +16,12 @@ namespace ctranslate2 {
       // from sequence_bias without modifying their source.
       std::vector<std::pair<std::vector<size_t>, float>> _persistent_sequence_bias;
 
+      // Persistent hot words — character-level biasing for novel words.
+      // Set the vocabulary map (token ID -> text) and hot words list once,
+      // and they apply to every generate() call.
+      std::vector<std::pair<std::string, float>> _persistent_hot_words;
+      std::vector<std::string> _persistent_vocab_map;
+
       bool is_multilingual() const {
         return _pool->is_multilingual();
       }
@@ -81,6 +87,12 @@ namespace ctranslate2 {
           options.sequence_bias = _persistent_sequence_bias;
         else
           options.sequence_bias.clear();
+
+        if (!_persistent_hot_words.empty() && !_persistent_vocab_map.empty()) {
+          options.hot_words = _persistent_hot_words;
+          options.vocab_map = _persistent_vocab_map;
+        }
+
         std::shared_lock lock(_mutex);
         assert_model_is_ready();
 
@@ -243,6 +255,23 @@ namespace ctranslate2 {
                        "making it compatible with higher-level libraries like faster-whisper.\n\n"
                        "Example:\n"
                        "    model.sequence_bias = [([token_id_1, token_id_2], 1.5)]\n")
+
+        .def_readwrite("hot_words", &WhisperWrapper::_persistent_hot_words,
+                       "Persistent hot words for character-level contextual biasing.\n\n"
+                       "Set to a list of ``(word_string, bias_weight)`` tuples. Unlike\n"
+                       "``sequence_bias`` which operates on token IDs, hot words work at\n"
+                       "the character level and can bias toward novel words the model has\n"
+                       "never seen (e.g. brand names, company names).\n\n"
+                       "Requires ``vocab_map`` to also be set.\n\n"
+                       "Example:\n"
+                       "    model.hot_words = [('Kynetec', 5.0), ('glyphosate', 3.0)]\n")
+
+        .def_readwrite("vocab_map", &WhisperWrapper::_persistent_vocab_map,
+                       "Token ID to text mapping for the vocabulary.\n\n"
+                       "Required for ``hot_words`` to work. Set to a list of strings\n"
+                       "where index i is the text for token ID i.\n\n"
+                       "Example:\n"
+                       "    model.vocab_map = [tokenizer.decode([i]) for i in range(vocab_size)]\n")
 
         .def("encode", &WhisperWrapper::encode,
              py::arg("features"),
